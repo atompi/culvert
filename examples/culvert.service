@@ -1,0 +1,15 @@
+[Unit]
+Description=Culvert Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/app/culvert
+User=root
+Group=root
+Restart=on-failure
+RestartSec=5s
+ExecStart=/app/culvert/culvert
+
+[Install]
+WantedBy=multi-user.target
