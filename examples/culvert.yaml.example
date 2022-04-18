@@ -1,0 +1,23 @@
+---
+server:
+  host: tunnelhost
+  port: 22
+  username: tunneluser
+  password: ""
+  keyFile: "./id_rsa"
+
+tunnels:
+  - name: mysql_12
+    remote:
+      host: 192.168.1.12
+      port: 3306
+    local:
+      bind: 0.0.0.0
+      port: 13306
+  - name: ssh_14
+    remote:
+      host: 192.168.1.14
+      port: 22
+    local:
+      bind: 192.168.10.11
+      port: 222
