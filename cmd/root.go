@@ -16,16 +16,18 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"time"
+	"os/signal"
+	"sync"
+	"syscall"
 
-	"gitee.com/autom-studio/culvert/internal/config"
-	"gitee.com/autom-studio/culvert/internal/forward"
+	"gitee.com/autom-studio/culvert/internal/tunnel"
+	logkit "gitee.com/autom-studio/go-kits/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"golang.org/x/crypto/ssh"
+	"go.uber.org/zap"
 )
 
 var cfgFile string
@@ -35,51 +37,40 @@ var rootCmd = &cobra.Command{
 	Use:     "culvert",
 	Short:   "A tool which create SSH tunnel for port forward.",
 	Long:    `Creat a port forward tunnel through SSH connection.`,
-	Version: config.Version,
+	Version: tunnel.Version,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
-		var culvertConfig config.CulvertConfig
+		var culvertConfig tunnel.CulvertConfig
 		err := viper.Unmarshal(&culvertConfig)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Unmarshal config failed: ", err)
 			os.Exit(1)
 		}
 
-		var sshAuth []ssh.AuthMethod
+		logPath := viper.GetString("log.path")
+		logLevel := viper.GetString("log.level")
+		logger := logkit.InitLogger(logPath, logLevel)
+		defer logger.Sync()
+		undo := zap.ReplaceGlobals(logger)
+		defer undo()
 
-		if culvertConfig.Server.Password != "" {
-			sshAuth = []ssh.AuthMethod{
-				ssh.Password(culvertConfig.Server.Password),
-			}
-		} else if culvertConfig.Server.KeyFile != "" {
-			key, err := ioutil.ReadFile(culvertConfig.Server.KeyFile)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, "Read private key file failed:", err)
-				os.Exit(1)
-			}
-			signer, err := ssh.ParsePrivateKey(key)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, "Parse private key file failed:", err)
-				os.Exit(1)
-			}
-			sshAuth = []ssh.AuthMethod{
-				ssh.PublicKeys(signer),
-			}
-		} else {
-			fmt.Fprintln(os.Stderr, "Have no SSH authorization mathod")
-			os.Exit(1)
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			sigc := make(chan os.Signal, 1)
+			signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM)
+			logger.Sugar().Infof("received %v - initiating shutdown", <-sigc)
+			cancel()
+		}()
+
+		var wg sync.WaitGroup
+		logger.Info("tunnel created")
+		defer logger.Info("tunnel closed")
+		for _, t := range culvertConfig.Tunnels {
+			wg.Add(1)
+			go t.BindTunnel(ctx, &wg)
 		}
-
-		sshClientConfig := &ssh.ClientConfig{
-			User:            culvertConfig.Server.Username,
-			Auth:            sshAuth,
-			Timeout:         30 * time.Second,
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		}
-		sshServerConfig := &culvertConfig.Server
-
-		forward.Tunnel(sshClientConfig, sshServerConfig, culvertConfig)
+		wg.Wait()
 	},
 }
 

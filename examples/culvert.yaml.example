@@ -1,23 +1,46 @@
 ---
-server:
-  host: tunnelhost
-  port: 22
-  username: tunneluser
-  password: ""
-  keyFile: "./id_rsa"
-
 tunnels:
-  - name: mysql_12
+  - name: devdocs_128
+    mode: L
+    host:
+      ip: 192.168.15.128
+      port: 22
+      username: atompi
+      password: "123456"
+      keyFile: "./id_rsa"
+      keyPassword: ""
+      knownHost: "192.168.15.128 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBOUDn8tF9i1XwSnYYKnoyR9z4g+pgdMR16vFFVH1UpskxgpAjgjBubdqTmIs1JQ8OJyWBomqandNM2WtIgQqAPc="
+    keepalive:
+      interval: 30
+      countMax: 2
     remote:
-      host: 192.168.1.12
-      port: 3306
+      bind: 192.168.15.128
+      port: 9292
     local:
       bind: 0.0.0.0
-      port: 13306
-  - name: ssh_14
-    remote:
-      host: 192.168.1.14
+      port: 19292
+    retryInterval: 5
+  - name: ssh_128
+    mode: R
+    host:
+      ip: 192.168.15.128
       port: 22
+      username: atompi
+      password: "123456"
+      keyFile: "./id_rsa"
+      keyPassword: ""
+      knownHost: "192.168.15.128 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBOUDn8tF9i1XwSnYYKnoyR9z4g+pgdMR16vFFVH1UpskxgpAjgjBubdqTmIs1JQ8OJyWBomqandNM2WtIgQqAPc="
+    keepalive:
+      interval: 30
+      countMax: 2
+    remote:
+      bind: 0.0.0.0
+      port: 2222
     local:
-      bind: 192.168.10.11
-      port: 222
+      bind: 192.168.15.128
+      port: 22
+    retryInterval: 5
+
+log:
+  path: "./culvert.log"
+  level: "INFO"
