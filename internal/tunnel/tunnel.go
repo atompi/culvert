@@ -2,6 +2,7 @@ package tunnel
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -35,11 +36,13 @@ func (t TunnelConfig) BindTunnel(ctx context.Context, wg *sync.WaitGroup) {
 				if t.Host.KeyPassword != "" {
 					key, err := readFile(t.Host.KeyFile)
 					if err != nil {
-						zap.L().Sugar().Errorf("read private key failed: %v", err)
+						once.Do(func() { zap.L().Sugar().Errorf("%s read private key failed: %v", t.Name, err) })
+						return
 					}
-					signer, err := ssh.ParsePrivateKey(key)
+					signer, err := ssh.ParsePrivateKeyWithPassphrase(key, []byte(t.Host.KeyPassword))
 					if err != nil {
-						zap.L().Sugar().Errorf("parse private key failed: %v", err)
+						once.Do(func() { zap.L().Sugar().Errorf("%s parse private key failed: %v", t.Name, err) })
+						return
 					}
 					sshAuth = []ssh.AuthMethod{
 						ssh.PublicKeys(signer),
@@ -47,21 +50,28 @@ func (t TunnelConfig) BindTunnel(ctx context.Context, wg *sync.WaitGroup) {
 				} else {
 					key, err := readFile(t.Host.KeyFile)
 					if err != nil {
-						zap.L().Sugar().Errorf("read private key failed: %v", err)
+						once.Do(func() { zap.L().Sugar().Errorf("%s read private key failed: %v", t.Name, err) })
+						return
 					}
-					signer, err := ssh.ParsePrivateKeyWithPassphrase(key, []byte(t.Host.KeyPassword))
+					signer, err := ssh.ParsePrivateKey(key)
 					if err != nil {
-						zap.L().Sugar().Errorf("parse private key failed: %v", err)
+						once.Do(func() { zap.L().Sugar().Errorf("%s parse private key failed: %v", t.Name, err) })
+						return
 					}
 					sshAuth = []ssh.AuthMethod{
 						ssh.PublicKeys(signer),
 					}
 				}
+			} else {
+				err := errors.New("unknown auth method")
+				once.Do(func() { zap.L().Sugar().Errorf("%s create auth failed: %v", t.Name, err) })
+				return
 			}
 			// Generate hostKeys
 			_, _, pubKey, _, _, err := ssh.ParseKnownHosts([]byte(t.Host.KnownHost))
 			if err != nil {
-				zap.L().Sugar().Errorf("parse known hosts failed: %v", err)
+				once.Do(func() { zap.L().Sugar().Errorf("%s parse known hosts failed: %v", t.Name, err) })
+				return
 			}
 			hostKeys := ssh.FixedHostKey(pubKey)
 			// Create ssh dial
@@ -73,7 +83,7 @@ func (t TunnelConfig) BindTunnel(ctx context.Context, wg *sync.WaitGroup) {
 				Timeout:         5 * time.Second,
 			})
 			if err != nil {
-				once.Do(func() { zap.L().Sugar().Errorf("create ssh dial error: %v", err) })
+				once.Do(func() { zap.L().Sugar().Errorf("%s create ssh dial failed: %v", t.Name, err) })
 				return
 			}
 
@@ -90,7 +100,7 @@ func (t TunnelConfig) BindTunnel(ctx context.Context, wg *sync.WaitGroup) {
 				l, err = dial.Listen("tcp", fmt.Sprintf("%s:%d", t.Remote.Bind, t.Remote.Port))
 			}
 			if err != nil {
-				once.Do(func() { zap.L().Sugar().Errorf("listener bind error: %v", err) })
+				once.Do(func() { zap.L().Sugar().Errorf("%s bind listener failed: %v", t.Name, err) })
 				return
 			}
 
@@ -107,14 +117,14 @@ func (t TunnelConfig) BindTunnel(ctx context.Context, wg *sync.WaitGroup) {
 				l.Close()
 			}()
 
-			zap.L().Sugar().Infof("tunnel %s listener bind", t.Name)
-			defer zap.L().Sugar().Infof("tunnel %s listener collapsed", t.Name)
+			zap.L().Sugar().Infof("%s tunnel listener bind success", t.Name)
+			defer zap.L().Sugar().Infof("%s tunnel listener closed", t.Name)
 
 			// Accept all incoming connections.
 			for {
 				conn, err := l.Accept()
 				if err != nil {
-					once.Do(func() { zap.L().Sugar().Errorf("tunnel %s listener accept error: %v", t.Name, err) })
+					once.Do(func() { zap.L().Sugar().Errorf("%s accept listener failed: %v", t.Name, err) })
 					return
 				}
 				wg.Add(1)
@@ -126,7 +136,7 @@ func (t TunnelConfig) BindTunnel(ctx context.Context, wg *sync.WaitGroup) {
 		case <-ctx.Done():
 			return
 		case <-time.After(time.Duration(t.RetryInterval) * time.Second):
-			zap.L().Sugar().Warnf("%s retrying...", t.Name)
+			zap.L().Sugar().Warnf("%s connection retrying", t.Name)
 		}
 	}
 }
@@ -152,7 +162,7 @@ func (t TunnelConfig) dialTunnel(ctx context.Context, wg *sync.WaitGroup, client
 		dialConn, err = net.Dial("tcp", fmt.Sprintf("%s:%d", t.Local.Bind, t.Local.Port))
 	}
 	if err != nil {
-		zap.L().Sugar().Errorf("tunnel %s dial error: %v", t.Name, err)
+		zap.L().Sugar().Errorf("%s dial error: %v", t.Name, err)
 		return
 	}
 
@@ -161,8 +171,8 @@ func (t TunnelConfig) dialTunnel(ctx context.Context, wg *sync.WaitGroup, client
 		dialConn.Close()
 	}()
 
-	zap.L().Sugar().Infof("tunnel %s connection established", t.Name)
-	defer zap.L().Sugar().Infof("tunnel %s connection closed", t.Name)
+	zap.L().Sugar().Infof("%s connection established", t.Name)
+	defer zap.L().Sugar().Infof("%s connection closed", t.Name)
 
 	// Copy bytes from one connection to the other until one side closes.
 	var once sync.Once
@@ -172,7 +182,7 @@ func (t TunnelConfig) dialTunnel(ctx context.Context, wg *sync.WaitGroup, client
 		defer dialWg.Done()
 		defer cancel()
 		if _, err := io.Copy(conn, dialConn); err != nil {
-			once.Do(func() { zap.L().Sugar().Errorf("tunnel %s send data error: %v", t.Name, err) })
+			once.Do(func() { zap.L().Sugar().Errorf("%s send data failed: %v", t.Name, err) })
 		}
 		once.Do(func() {}) // Suppress future errors
 	}()
@@ -180,7 +190,7 @@ func (t TunnelConfig) dialTunnel(ctx context.Context, wg *sync.WaitGroup, client
 		defer dialWg.Done()
 		defer cancel()
 		if _, err := io.Copy(dialConn, conn); err != nil {
-			once.Do(func() { zap.L().Sugar().Errorf("tunnel %s receive data error: %v", t.Name, err) })
+			once.Do(func() { zap.L().Sugar().Errorf("%s receive data failed: %v", t.Name, err) })
 		}
 		once.Do(func() {}) // Suppress future errors
 	}()
@@ -212,12 +222,12 @@ func (t TunnelConfig) keepAliveMonitor(once *sync.Once, wg *sync.WaitGroup, clie
 		select {
 		case err := <-wait:
 			if err != nil && err != io.EOF {
-				once.Do(func() { zap.L().Sugar().Errorf("tunnel %s connection error: %v", t.Name, err) })
+				once.Do(func() { zap.L().Sugar().Errorf("%s connection failed: %v", t.Name, err) })
 			}
 			return
 		case <-ticker.C:
 			if n := atomic.AddInt32(&aliveCount, 1); n > int32(t.Keepalive.CountMax) {
-				once.Do(func() { zap.L().Sugar().Warnf("tunnel %s ssh keepalive termination", t.Name) })
+				once.Do(func() { zap.L().Sugar().Warnf("%s ssh keepalive termination", t.Name) })
 				client.Close()
 				return
 			}

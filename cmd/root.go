@@ -48,8 +48,8 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		logPath := viper.GetString("log.path")
-		logLevel := viper.GetString("log.level")
+		logPath := culvertConfig.Log.Path
+		logLevel := culvertConfig.Log.Level
 		logger := logkit.InitLogger(logPath, logLevel)
 		defer logger.Sync()
 		undo := zap.ReplaceGlobals(logger)
