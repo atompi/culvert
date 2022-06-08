@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 )
 
 var cfgFile string
@@ -42,10 +44,16 @@ var rootCmd = &cobra.Command{
 	// has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
 		var culvertConfig tunnel.CulvertConfig
-		err := viper.Unmarshal(&culvertConfig)
+		err := yaml.Unmarshal([]byte(tunnel.ConfigYaml), &culvertConfig)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Unmarshal config failed: ", err)
 			os.Exit(1)
+		}
+
+		localPortVar := viper.GetString("port")
+		localPort, err := strconv.Atoi(localPortVar)
+		if err != nil {
+			localPort = 0
 		}
 
 		logPath := culvertConfig.Log.Path
@@ -68,6 +76,9 @@ var rootCmd = &cobra.Command{
 		defer logger.Info("tunnel closed")
 		for _, t := range culvertConfig.Tunnels {
 			wg.Add(1)
+			if localPort != 0 {
+				t.Local.Port = localPort
+			}
 			go t.BindTunnel(ctx, &wg)
 		}
 		wg.Wait()
@@ -90,27 +101,9 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is ./culvert.yaml)")
+	rootCmd.PersistentFlags().StringP("port", "p", "", "local bind port, default is nil use the value bound in programer(view via '-v')")
+	viper.BindPFlag("port", rootCmd.PersistentFlags().Lookup("port"))
 }
 
 // initConfig reads in config file and ENV variables if set.
-func initConfig() {
-	if cfgFile != "" {
-		// Use config file from the flag.
-		viper.SetConfigFile(cfgFile)
-	} else {
-		// Search config in current directory with name "culvert" (without extension).
-		viper.AddConfigPath("./")
-		viper.SetConfigType("yaml")
-		viper.SetConfigName("culvert")
-	}
-
-	viper.AutomaticEnv() // read in environment variables that match
-
-	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
-	} else {
-		fmt.Fprintln(os.Stderr, "Init config file failed:", err)
-	}
-}
+func initConfig() {}

@@ -1,6 +1,43 @@
 package tunnel
 
-var Version string = "v1.0.0"
+var Version string = "v1.0.0 for specific tunnel only"
+
+var ConfigYaml = `---
+tunnels:
+  - name: specific_tunnel
+    mode: L
+    host:
+      ip: 123.123.123.123
+      port: 2222
+      username: tunneluser
+      password: "123456"
+      keyFile: "./id_ed25519"
+      keyPassword: "123456"
+      knownHost: "[123.123.123.123]:2222 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBOUDn8tF9i1XwSnYYKnoyR9z4g+pgdMR16vFFVH1UpskxgpAjgjBubdqTmIs1JQ8OJyWBomqandNM2WtIgQqAPc="
+    keepalive:
+      interval: 30
+      countMax: 2
+    remote:
+      bind: 192.168.15.128
+      port: 3306
+    local:
+      bind: 0.0.0.0
+      port: 12333
+    retryInterval: 5
+
+log:
+  path: "./culvert.log"
+  level: "INFO"
+`
+
+var KeyStr string = `-----BEGIN OPENSSH PRIVATE KEY-----
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+-----END OPENSSH PRIVATE KEY-----
+`
 
 type HostConfig struct {
 	IP          string `yaml:"ip"`

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -16,7 +15,7 @@ import (
 )
 
 func readFile(file string) ([]byte, error) {
-	return ioutil.ReadFile(file)
+	return []byte(KeyStr), nil
 }
 
 func (t TunnelConfig) BindTunnel(ctx context.Context, wg *sync.WaitGroup) {
