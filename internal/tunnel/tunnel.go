@@ -161,7 +161,7 @@ func (t TunnelConfig) dialTunnel(ctx context.Context, wg *sync.WaitGroup, client
 		dialConn, err = net.Dial("tcp", fmt.Sprintf("%s:%d", t.Local.Bind, t.Local.Port))
 	}
 	if err != nil {
-		zap.L().Sugar().Errorf("%s dial error: %v", t.Name, err)
+		zap.L().Sugar().Errorf("%s dial failed: %v", t.Name, err)
 		return
 	}
 
