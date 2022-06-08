@@ -1,5 +1,6 @@
 .vscode/
 examples/culvert
+examples/culvert_*
 examples/culvert.yaml
 examples/id_rsa
 examples/culvert.log
