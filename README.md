@@ -5,7 +5,7 @@ A tool to quickly open ssh forwarding tunnels.
 ## Build
 
 ```
-git clone https://gitee.com/autom-studio/culvert.git -b static
+git clone https://github.com/atompi/culvert.git -b static
 # modify Version, ConfigYaml, KeyStr in internal/tunnel/config.go
 # build
 go build -o examples/culvert_<tunnel_name>
