@@ -5,7 +5,7 @@ A tool to quickly open ssh forwarding tunnels.
 ## Build
 
 ```
-git clone https://gitee.com/autom-studio/culvert.git
+git clone https://gitub.com/atompi/culvert.git
 go build -o examples/culvert
 ```
 
